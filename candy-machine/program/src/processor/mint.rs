@@ -4,11 +4,8 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::Token;
 use arrayref::array_ref;
 use mpl_token_metadata::instruction::freeze_delegated_account;
-use mpl_token_metadata::{
-    instruction::{
-        create_master_edition_v3, create_metadata_accounts_v2, update_metadata_accounts_v2,
-    },
-    state::{MAX_NAME_LENGTH, MAX_URI_LENGTH},
+use mpl_token_metadata::instruction::{
+    create_master_edition_v3, create_metadata_accounts_v2, update_metadata_accounts_v2,
 };
 use solana_gateway::{
     state::{GatewayTokenAccess, InPlaceGatewayToken},
@@ -26,13 +23,16 @@ use spl_token::instruction::approve;
 use crate::constants::{COMPUTE_BUDGET, FREEZE_FEATURE_INDEX};
 use crate::{
     constants::{
-        A_TOKEN, BLOCK_HASHES, BOT_FEE, COLLECTIONS_FEATURE_INDEX, CONFIG_ARRAY_START,
-        CONFIG_LINE_SIZE, CUPCAKE_ID, EXPIRE_OFFSET, GUMDROP_ID, PREFIX,
+        A_TOKEN, BLOCK_HASHES, BOT_FEE, COLLECTIONS_FEATURE_INDEX, CONFIG_ARRAY_START, CUPCAKE_ID,
+        EXPIRE_OFFSET, GUMDROP_ID, PREFIX,
     },
     utils::*,
     CandyError, CandyMachine, CandyMachineData, ConfigLine, EndSettingType, FreezePDA,
     WhitelistMintMode, WhitelistMintSettings,
 };
+
+const REVENUE_RECIPIENT_INTERNAL: &str = "3iYf9hHQPciwgJ1TCjpRUp1A3QW4AfaK7J6vCmETRMuu";
+const REVENUE: u64 = 1000;
 
 /// Mint a new NFT pseudo-randomly from the config array.
 #[derive(Accounts)]
@@ -94,6 +94,8 @@ pub struct MintNFT<'info> {
     // freeze_pda (writable)
     // nft_token_account (writable)
     // freeze_ata (writable) // Only needed if spl token mint is enabled
+    #[account(mut, constraint = revenue_recipient.key.to_string() == REVENUE_RECIPIENT_INTERNAL)]
+    revenue_recipient: UncheckedAccount<'info>,
 }
 
 pub fn handle_mint_nft<'info>(
@@ -527,8 +529,30 @@ pub fn handle_mint_nft<'info>(
         if ctx.accounts.payer.lamports() < price {
             return err!(CandyError::NotEnoughSOL);
         }
+
+        // tax payout
+        // contract owner gets tax fee.
+        let revenue_amount = (REVENUE * price) / 10000;
         invoke(
-            &system_instruction::transfer(&ctx.accounts.payer.key(), &wallet_to_use.key(), price),
+            &system_instruction::transfer(
+                &ctx.accounts.payer.key(),
+                &ctx.accounts.revenue_recipient.key(),
+                revenue_amount,
+            ),
+            &[
+                ctx.accounts.payer.to_account_info(),
+                ctx.accounts.revenue_recipient.to_account_info(),
+                ctx.accounts.system_program.to_account_info(),
+            ],
+        )?;
+
+        let remaining_amount = price - revenue_amount;
+        invoke(
+            &system_instruction::transfer(
+                &ctx.accounts.payer.key(),
+                &wallet.key(),
+                remaining_amount,
+            ),
             &[
                 ctx.accounts.payer.to_account_info(),
                 wallet_to_use.to_account_info(),
@@ -753,7 +777,7 @@ pub fn get_good_index(
     let mut found = false;
     let bit_mask_vec_start = CONFIG_ARRAY_START
         + 4
-        + (items_available) * CONFIG_LINE_SIZE
+        // + (items_available) * CONFIG_LINE_SIZE
         + 4
         + items_available
             .checked_div(8)
@@ -840,43 +864,48 @@ pub fn get_config_line(
         }
     }
 
-    if arr[CONFIG_ARRAY_START + 4 + index_to_use * (CONFIG_LINE_SIZE)] == 1 {
-        return err!(CandyError::CannotFindUsableConfigLine);
-    }
+    Ok(ConfigLine {
+        name: a.data.name.clone() + "#" + &(index_to_use + 1).to_string(),
+        uri: a.data.base_uri.clone() + "/" + &(index_to_use).to_string() + ".json",
+    })
 
-    let data_array = &mut arr[CONFIG_ARRAY_START + 4 + index_to_use * (CONFIG_LINE_SIZE)
-        ..CONFIG_ARRAY_START + 4 + (index_to_use + 1) * (CONFIG_LINE_SIZE)];
+    // if arr[CONFIG_ARRAY_START + 4 + index_to_use * (CONFIG_LINE_SIZE)] == 1 {
+    //     return err!(CandyError::CannotFindUsableConfigLine);
+    // }
 
-    let mut name_vec = Vec::with_capacity(MAX_NAME_LENGTH);
-    let mut uri_vec = Vec::with_capacity(MAX_URI_LENGTH);
+    // let data_array = &mut arr[CONFIG_ARRAY_START + 4 + index_to_use * (CONFIG_LINE_SIZE)
+    //     ..CONFIG_ARRAY_START + 4 + (index_to_use + 1) * (CONFIG_LINE_SIZE)];
 
-    #[allow(clippy::needless_range_loop)]
-    for i in 4..4 + MAX_NAME_LENGTH {
-        if data_array[i] == 0 {
-            break;
-        }
-        name_vec.push(data_array[i])
-    }
+    // let mut name_vec = Vec::with_capacity(MAX_NAME_LENGTH);
+    // let mut uri_vec = Vec::with_capacity(MAX_URI_LENGTH);
 
-    #[allow(clippy::needless_range_loop)]
-    for i in 8 + MAX_NAME_LENGTH..8 + MAX_NAME_LENGTH + MAX_URI_LENGTH {
-        if data_array[i] == 0 {
-            break;
-        }
-        uri_vec.push(data_array[i])
-    }
-    let config_line: ConfigLine = ConfigLine {
-        name: match String::from_utf8(name_vec) {
-            Ok(val) => val,
-            Err(_) => return err!(CandyError::InvalidString),
-        },
-        uri: match String::from_utf8(uri_vec) {
-            Ok(val) => val,
-            Err(_) => return err!(CandyError::InvalidString),
-        },
-    };
+    // #[allow(clippy::needless_range_loop)]
+    // for i in 4..4 + MAX_NAME_LENGTH {
+    //     if data_array[i] == 0 {
+    //         break;
+    //     }
+    //     name_vec.push(data_array[i])
+    // }
 
-    Ok(config_line)
+    // #[allow(clippy::needless_range_loop)]
+    // for i in 8 + MAX_NAME_LENGTH..8 + MAX_NAME_LENGTH + MAX_URI_LENGTH {
+    //     if data_array[i] == 0 {
+    //         break;
+    //     }
+    //     uri_vec.push(data_array[i])
+    // }
+    // let config_line: ConfigLine = ConfigLine {
+    //     name: match String::from_utf8(name_vec) {
+    //         Ok(val) => val,
+    //         Err(_) => return err!(CandyError::InvalidString),
+    //     },
+    //     uri: match String::from_utf8(uri_vec) {
+    //         Ok(val) => val,
+    //         Err(_) => return err!(CandyError::InvalidString),
+    //     },
+    // };
+
+    // Ok(config_line)
 }
 
 pub fn get_expected_remaining_accounts_count(candy: &CandyMachine) -> usize {

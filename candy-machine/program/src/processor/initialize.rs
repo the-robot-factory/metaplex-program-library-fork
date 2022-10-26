@@ -3,9 +3,8 @@ use mpl_token_metadata::state::{MAX_CREATOR_LIMIT, MAX_SYMBOL_LENGTH};
 use spl_token::state::Mint;
 
 use crate::{
-    assert_initialized, assert_owned_by, cmp_pubkeys,
-    constants::{CONFIG_ARRAY_START, CONFIG_LINE_SIZE},
-    CandyError, CandyMachine, CandyMachineData,
+    assert_initialized, assert_owned_by, cmp_pubkeys, constants::CONFIG_ARRAY_START, CandyError,
+    CandyMachine, CandyMachineData,
 };
 
 /// Create a new candy machine.
@@ -83,9 +82,8 @@ pub fn handle_initialize_candy_machine(
     // only if we are not using hidden settings we will have space for
     // the config lines
     if candy_machine.data.hidden_settings.is_none() {
-        let vec_start = CONFIG_ARRAY_START
-            + 4
-            + (candy_machine.data.items_available as usize) * CONFIG_LINE_SIZE;
+        let vec_start = CONFIG_ARRAY_START + 4;
+        // + (candy_machine.data.items_available as usize) * CONFIG_LINE_SIZE;
         let as_bytes = (candy_machine
             .data
             .items_available
@@ -106,7 +104,7 @@ fn get_space_for_candy(data: CandyMachineData) -> Result<usize> {
     } else {
         CONFIG_ARRAY_START
             + 4
-            + (data.items_available as usize) * CONFIG_LINE_SIZE
+            // + (data.items_available as usize) * CONFIG_LINE_SIZE
             + 8
             + 2 * ((data
                 .items_available

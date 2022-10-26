@@ -93,6 +93,8 @@ pub struct CandyMachineData {
     pub hidden_settings: Option<HiddenSettings>,
     pub whitelist_mint_settings: Option<WhitelistMintSettings>,
     pub items_available: u64,
+    pub base_uri: String,
+    pub name: String, 
     /// If [`Some`] requires gateway tokens on mint
     pub gatekeeper: Option<GatekeeperConfig>,
 }
