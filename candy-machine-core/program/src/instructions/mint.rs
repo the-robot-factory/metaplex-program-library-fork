@@ -10,7 +10,7 @@ use mpl_token_metadata::{
 use solana_program::{program::invoke_signed, sysvar};
 
 use crate::{
-    constants::{AUTHORITY_SEED, EMPTY_STR, HIDDEN_SECTION, NULL_STRING},
+    constants::{AUTHORITY_SEED, HIDDEN_SECTION},
     utils::*,
     CandyError, CandyMachine, ConfigLine,
 };
@@ -250,10 +250,10 @@ pub fn get_config_line(
     let mut account_data = account_info.data.borrow_mut();
 
     // validates that all config lines were added to the candy machine
-    let config_count = get_config_count(&account_data)? as u64;
-    if config_count != candy_machine.data.items_available {
-        return err!(CandyError::NotFullyLoaded);
-    }
+    // let config_count = get_config_count(&account_data)? as u64;
+    // if config_count != candy_machine.data.items_available {
+    //     return err!(CandyError::NotFullyLoaded);
+    // }
 
     // (1) determine the mint index (index is a random index on the available indices array)
 
@@ -263,7 +263,7 @@ pub fn get_config_line(
         let items_available = candy_machine.data.items_available as u64;
         let indices_start = HIDDEN_SECTION
             + 4
-            + (items_available as usize) * candy_machine.data.get_config_line_size()
+            // + (items_available as usize) * candy_machine.data.get_config_line_size()
             + (items_available
                 .checked_div(8)
                 .ok_or(CandyError::NumericalOverflowError)?
@@ -283,32 +283,32 @@ pub fn get_config_line(
 
     // (2) retrieve the config line at the mint_index position
 
-    let mut position =
-        HIDDEN_SECTION + 4 + value_to_use * candy_machine.data.get_config_line_size();
-    let name_length = settings.name_length as usize;
-    let uri_length = settings.uri_length as usize;
+    // let mut position =
+    //     HIDDEN_SECTION + 4 + value_to_use * candy_machine.data.get_config_line_size();
+    // let name_length = settings.name_length as usize;
+    // let uri_length = settings.uri_length as usize;
 
-    let name = if name_length > 0 {
-        let name_slice: &mut [u8] = &mut account_data[position..position + name_length];
-        let name = String::from_utf8(name_slice.to_vec())
-            .map_err(|_| CandyError::CouldNotRetrieveConfigLineData)?;
-        name.trim_end_matches(NULL_STRING).to_string()
-    } else {
-        EMPTY_STR.to_string()
-    };
+    // let name = if name_length > 0 {
+    //     let name_slice: &mut [u8] = &mut account_data[position..position + name_length];
+    //     let name = String::from_utf8(name_slice.to_vec())
+    //         .map_err(|_| CandyError::CouldNotRetrieveConfigLineData)?;
+    //     name.trim_end_matches(NULL_STRING).to_string()
+    // } else {
+    //     EMPTY_STR.to_string()
+    // };
 
-    position += name_length;
-    let uri = if uri_length > 0 {
-        let uri_slice: &mut [u8] = &mut account_data[position..position + uri_length];
-        let uri = String::from_utf8(uri_slice.to_vec())
-            .map_err(|_| CandyError::CouldNotRetrieveConfigLineData)?;
-        uri.trim_end_matches(NULL_STRING).to_string()
-    } else {
-        EMPTY_STR.to_string()
-    };
+    // position += name_length;
+    // let uri = if uri_length > 0 {
+    //     let uri_slice: &mut [u8] = &mut account_data[position..position + uri_length];
+    //     let uri = String::from_utf8(uri_slice.to_vec())
+    //         .map_err(|_| CandyError::CouldNotRetrieveConfigLineData)?;
+    //     uri.trim_end_matches(NULL_STRING).to_string()
+    // } else {
+    //     EMPTY_STR.to_string()
+    // };
 
-    let complete_name = replace_patterns(settings.prefix_name.clone(), value_to_use) + &name;
-    let complete_uri = replace_patterns(settings.prefix_uri.clone(), value_to_use) + &uri;
+    let complete_name = settings.prefix_name.clone() + " #" + &(value_to_use + 1).to_string();
+    let complete_uri = settings.prefix_uri.clone() + "/" + &(value_to_use).to_string() + ".json";
 
     Ok(ConfigLine {
         name: complete_name,

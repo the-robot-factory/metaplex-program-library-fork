@@ -11,7 +11,7 @@ mod instructions;
 mod state;
 mod utils;
 
-declare_id!("CndyV3LdqHUfDLmE5naZjVN8rBZz4tqhdefbAnjHG3JR");
+declare_id!("3bkPd6DZnG3qTV4DHUWNhPMzft8L2ePiAkq9CPmUH3ab");
 
 #[program]
 pub mod candy_machine_core {

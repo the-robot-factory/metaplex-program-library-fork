@@ -68,7 +68,7 @@ impl CandyMachineData {
         } else {
             HIDDEN_SECTION
                 + 4
-                + (self.items_available as usize) * self.get_config_line_size()
+                // + (self.items_available as usize) * self.get_config_line_size()
                 + (self
                     .items_available
                     .checked_div(8)
